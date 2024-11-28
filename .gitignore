@@ -1,5 +1,9 @@
 # Others
 clear.py
+data/
+images/
+audio/
+index.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

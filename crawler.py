@@ -29,7 +29,6 @@ url = "https://tuoitre.vn"
 
 timeline = {
     "thoi-su.htm": 3,
-    "giao-duc.htm": 13,
     "the-gioi.htm": 2,
     "phap-luat.htm": 6,
     "kinh-doanh.htm": 11,
@@ -40,7 +39,7 @@ timeline = {
     "van-hoa.htm": 200017,
     "giai-tri.htm": 10,
     "the-thao.htm": 1209,
-    "gia-duc.htm": 13,
+    "giao-duc.htm": 13,
     "nha-dat.htm": 204,
     "suc-khoe.htm": 12,
     "gia-that.htm": 200015,
@@ -69,16 +68,17 @@ for input_url, input_number in zip(input_urls, input_numbers):
         links = [title.find("a").attrs.get("href") for title in titles]
         ids = [title.attrs.get("data-comment") for title in titles]
 
-        valid_urls = 0
         for i, link in enumerate(links):
             print(f"Crawling content from {url + link}")
 
-            response = requests.get(url + link)
-            if response.status_code != 200:
-                print(f"Failed to crawl data from {url + link}.")
+            if os.path.exists(f"data/{ids[i]}.json"):
+                print(f"Data from {url + link} has been saved before")
                 continue
 
-            valid_urls += 1
+            response = requests.get(url + link)
+            if response.status_code != 200:
+                print(f"Failed to crawl data from {url + link}")
+                continue
 
             soup = BeautifulSoup(response.content, "html.parser")
 
@@ -88,30 +88,35 @@ for input_url, input_number in zip(input_urls, input_numbers):
             date = soup.find("meta", property="article:published_time").attrs.get(
                 "content"
             )
-            try:
-                category = soup.find("div", class_="detail-cate").find("a").text
-            except:
-                category = ""
-            title = soup.find("h1", class_="detail-title article-title")
-            if title == None:
-                title = soup.find("h1", class_="detail-title")
+            title = soup.find("meta", property="og:title").attrs.get("content")
+            description = soup.find("meta", property="og:description").attrs.get(
+                "content"
+            )
+            author = soup.find("meta", property="dable:author").attrs.get("content")
+            category = soup.find("meta", property="article:section").attrs.get(
+                "content"
+            )
 
-            if title:
-                title = title.text
-                author = (
-                    soup.find("div", class_="author-info").find("a", class_="name").text
-                )
-                body = soup.find("div", class_="detail-content afcbc-body")
-            else:
+            body = soup.find("div", class_="detail-content afcbc-body")
+            if not body:
                 body = soup.find(
                     "div", class_="detail-content contentOuter sp-detail-content"
                 )
-                title = body.find("h2").text
+
+            description = description.replace("\r\n", "").strip()
+            content = " ".join([p.text for p in body.findAll("p", recursive=False)])
+
             image_urls = [
                 image_url.attrs.get("src") for image_url in body.findAll("img")
             ]
 
-            content = " ".join([p.text for p in body.findAll("p")])
+            audio_url = (
+                "https://tts.mediacdn.vn/"
+                + date.split("T")[0].replace("-", "/")
+                + "/tuoitre-nu-1-"
+                + ids[i]
+                + ".m4a"
+            )
 
             # Crawl reactions
             print("Crawling reactions")
@@ -137,12 +142,12 @@ for input_url, input_number in zip(input_urls, input_numbers):
 
             # Crawl comments
             print("Crawling comments")
-            page_index = 1
+            comment_index = 1
             comments_data = []
             while True:
-                print(f"Loading comments page {page_index}")
+                print(f"Loading comments page {comment_index}")
                 response = requests.get(
-                    f"https://id.tuoitre.vn/api/getlist-comment.api?objId={ids[i]}&objType=1&pageindex={page_index}"
+                    f"https://id.tuoitre.vn/api/getlist-comment.api?objId={ids[i]}&objType=1&pageindex={comment_index}"
                 )
 
                 data = json.loads(response.json()["Data"])
@@ -150,7 +155,7 @@ for input_url, input_number in zip(input_urls, input_numbers):
                     break
 
                 comments_data.extend(data)
-                page_index += 1
+                comment_index += 1
 
             comments = []
             for comment in comments_data:
@@ -193,24 +198,16 @@ for input_url, input_number in zip(input_urls, input_numbers):
                     )
 
             # Crawl images
-            print("Crawling images")
-            images = []
-            for image_url in image_urls:
-                image_name = image_url.split("/")[-1]
-                image = requests.get(image_url)
-                images.append(image)
+            # print("Crawling images")
+            # images = []
+            # for image_url in image_urls:
+            #     image_name = image_url.split("/")[-1]
+            #     image = requests.get(image_url)
+            #     images.append(image)
 
             # Crawl audio
-            print("Crawling audio")
-            audio_url = (
-                "https://tts.mediacdn.vn/"
-                + date.split("T")[0].replace("-", "/")
-                + "/tuoitre-nu-1-"
-                + ids[i]
-                + ".m4a"
-            )
-
-            audio = requests.get(audio_url)
+            # print("Crawling audio")
+            # audio = requests.get(audio_url)
 
             # Save data
             print("Saving data")
@@ -222,6 +219,7 @@ for input_url, input_number in zip(input_urls, input_numbers):
                     {
                         "postId": ids[i],
                         "title": title,
+                        "description": description,
                         "content": content,
                         "author": author,
                         "date": date,
@@ -236,25 +234,25 @@ for input_url, input_number in zip(input_urls, input_numbers):
                 )
 
             # Save images
-            print("Saving images")
-            if not os.path.exists(f"images"):
-                os.mkdir(f"images")
+            # print("Saving images")
+            # if not os.path.exists(f"images"):
+            #     os.mkdir(f"images")
 
-            if not os.path.exists(f"images/{ids[i]}"):
-                os.mkdir(f"images/{ids[i]}")
+            # if not os.path.exists(f"images/{ids[i]}"):
+            #     os.mkdir(f"images/{ids[i]}")
 
-            for j, image_url in enumerate(image_urls):
-                image_name = image_url.split("/")[-1]
-                with open(f"images/{ids[i]}/{image_name}", "wb") as file:
-                    file.write(images[j].content)
+            # for j, image_url in enumerate(image_urls):
+            #     image_name = image_url.split("/")[-1]
+            #     with open(f"images/{ids[i]}/{image_name}", "wb") as file:
+            #         file.write(images[j].content)
 
             # Save audio
-            print("Saving audio")
-            if not os.path.exists(f"audio"):
-                os.mkdir(f"audio")
+            # print("Saving audio")
+            # if not os.path.exists(f"audio"):
+            #     os.mkdir(f"audio")
 
-            with open(f"audio/{ids[i]}.m4a", "wb") as file:
-                file.write(audio.content)
+            # with open(f"audio/{ids[i]}.m4a", "wb") as file:
+            #     file.write(audio.content)
 
             print(f"All data from {url + link} has been saved successfully.")
 
