@@ -1,2 +1,3 @@
+maturin
 underthesea
 scikit-learn
